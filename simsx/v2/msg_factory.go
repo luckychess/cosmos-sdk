@@ -7,14 +7,14 @@ import (
 
 // NextFactoryFn shuffles and processes a weighted list of factories, returning a selection function for factory objects.
 func NextFactoryFn(factories []simsx.WeightedFactory, r *rand.Rand) func() simsx.SimMsgFactoryX {
-	r.Shuffle(len(factories), func(i, j int) {
+	factCount := len(factories)
+	r.Shuffle(factCount, func(i, j int) {
 		factories[i], factories[j] = factories[j], factories[i]
 	})
 	var totalWeight int
 	for k := range factories {
 		totalWeight += k
 	}
-	factCount := len(factories)
 	return func() simsx.SimMsgFactoryX {
 		// this is copied from old sims WeightedOperations.getSelectOpFn
 		x := r.Intn(totalWeight)

@@ -2,7 +2,6 @@ package keeper
 
 import (
 	"context"
-
 	"cosmossdk.io/errors"
 	"cosmossdk.io/x/slashing/types"
 
@@ -59,7 +58,7 @@ func (k Keeper) Unjail(ctx context.Context, validatorAddr sdk.ValAddress) error 
 	if err == nil {
 		// cannot be unjailed if tombstoned
 		if info.Tombstoned {
-			return types.ErrValidatorJailed
+			return errors.Wrapf(types.ErrValidatorJailed, validator.GetOperator())
 		}
 
 		if k.HeaderService.HeaderInfo(ctx).Time.Before(info.JailedUntil) {

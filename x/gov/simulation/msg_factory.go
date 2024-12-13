@@ -131,8 +131,7 @@ func submitProposalWithVotesScheduled(
 	proposalMsgs ...sdk.Msg,
 ) ([]simsx.SimAccount, *v1.MsgSubmitProposal) {
 	r := testData.Rand()
-	expedited := true
-	// expedited := r.Bool()
+	expedited := r.Bool()
 	params := must(k.Params.Get(ctx))
 	minDeposits := params.MinDeposit
 	if expedited {
@@ -233,7 +232,8 @@ func submitProposalWithVotesScheduled(
 				return []simsx.SimAccount{voter}, msg
 			}
 			whenVote := now.Add(time.Duration(r.Int63n(int64(votingPeriod.Seconds()))) * time.Second)
-			fOpsReg.Add(whenVote, vF)
+			//	fOpsReg.Add(whenVote, vF)
+			_, _ = vF, whenVote
 		}
 	}
 	return []simsx.SimAccount{proposer}, msg

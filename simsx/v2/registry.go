@@ -1,6 +1,7 @@
 package v2
 
 import (
+	"math/rand"
 	"time"
 
 	"github.com/huandu/skiplist"
@@ -8,27 +9,19 @@ import (
 	"github.com/cosmos/cosmos-sdk/simsx"
 )
 
+// FutureOpsRegistry is a registry for scheduling and retrieving operations mapped to future block times.
 type FutureOpsRegistry struct {
 	list *skiplist.SkipList
 }
 
-var _ skiplist.Comparable = timeComparator{}
-
-// used for skiplist
-type timeComparator struct{}
-
-func (t timeComparator) Compare(lhs, rhs interface{}) int {
-	return lhs.(time.Time).Compare(rhs.(time.Time))
-}
-
-func (t timeComparator) CalcScore(key interface{}) float64 {
-	return float64(key.(time.Time).UnixNano())
-}
-
+// NewFutureOpsRegistry constructor
 func NewFutureOpsRegistry() *FutureOpsRegistry {
-	return &FutureOpsRegistry{list: skiplist.New(timeComparator{})}
+	list := skiplist.New(timeComparator{})
+	list.SetRandSource(rand.NewSource(1))
+	return &FutureOpsRegistry{list: list}
 }
 
+// Add schedules a new operation for the given block time
 func (l *FutureOpsRegistry) Add(blockTime time.Time, fx simsx.SimMsgFactoryX) {
 	if fx == nil {
 		panic("message factory must not be nil")
@@ -44,7 +37,8 @@ func (l *FutureOpsRegistry) Add(blockTime time.Time, fx simsx.SimMsgFactoryX) {
 	l.list.Set(blockTime, scheduledOps)
 }
 
-func (l *FutureOpsRegistry) FindScheduled(blockTime time.Time) []simsx.SimMsgFactoryX {
+// PopScheduledFor retrieves and removes all scheduled operations up to the specified block time from the registry.
+func (l *FutureOpsRegistry) PopScheduledFor(blockTime time.Time) []simsx.SimMsgFactoryX {
 	var r []simsx.SimMsgFactoryX
 	for {
 		e := l.list.Front()
@@ -55,4 +49,17 @@ func (l *FutureOpsRegistry) FindScheduled(blockTime time.Time) []simsx.SimMsgFac
 		l.list.RemoveFront()
 	}
 	return r
+}
+
+var _ skiplist.Comparable = timeComparator{}
+
+// used for SkipList
+type timeComparator struct{}
+
+func (t timeComparator) Compare(lhs, rhs interface{}) int {
+	return lhs.(time.Time).Compare(rhs.(time.Time))
+}
+
+func (t timeComparator) CalcScore(key interface{}) float64 {
+	return float64(key.(time.Time).UnixNano())
 }

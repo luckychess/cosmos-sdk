@@ -3,6 +3,7 @@ package v2
 import (
 	"bytes"
 	"crypto/sha256"
+	"fmt"
 	"math/rand"
 	"slices"
 
@@ -16,6 +17,17 @@ type WeightedValidator struct {
 	Power   int64
 	Address []byte
 	Offline bool
+}
+
+func (a WeightedValidator) Compare(b WeightedValidator) int {
+	switch {
+	case a.Power < b.Power:
+		return 1
+	case a.Power > b.Power:
+		return -1
+	default:
+		return bytes.Compare(a.Address, b.Address)
+	}
 }
 
 // NewValSet constructor
@@ -41,9 +53,11 @@ func (v WeightedValidators) Update(updates []appmodulev2.ValidatorUpdate) Weight
 		pos := slices.IndexFunc(newValset, func(val WeightedValidator) bool {
 			return bytes.Equal(u.Address, val.Address)
 		})
-		if pos == -1 {
+		if pos == -1 { // new address
 			if u.Power > 0 {
 				newValset = append(newValset, u)
+			} else {
+				fmt.Printf("Adding validator with power 0: %X\n", u.Address)
 			}
 			continue
 		}
@@ -53,17 +67,13 @@ func (v WeightedValidators) Update(updates []appmodulev2.ValidatorUpdate) Weight
 		}
 		newValset[pos].Power = u.Power
 	}
+	slices.DeleteFunc(newValset, func(validator WeightedValidator) bool {
+		return validator.Power == 0
+	})
 
 	// sort vals by Power
 	slices.SortFunc(newValset, func(a, b WeightedValidator) int {
-		switch {
-		case a.Power < b.Power:
-			return 1
-		case a.Power > a.Power:
-			return -1
-		default:
-			return bytes.Compare(a.Address, b.Address)
-		}
+		return a.Compare(b)
 	})
 	return newValset
 }

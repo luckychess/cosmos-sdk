@@ -212,10 +212,11 @@ func (app *SimApp[T]) Store() store.RootStore {
 
 // Close overwrites the base Close method to close the stores.
 func (app *SimApp[T]) Close() error {
+	println("closing store")
 	if err := app.store.Close(); err != nil {
 		return err
 	}
-
+	println("closing App")
 	return app.App.Close()
 }
 

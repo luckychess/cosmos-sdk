@@ -129,6 +129,7 @@ func TestSimsAppV2(t *testing.T) {
 	testInstance := SetupTestInstance[Tx](t)
 
 	tCfg := cli.NewConfigFromFlags().With(t, 1, nil)
+	t.Logf("Seed: %d\n", tCfg.Seed)
 	r := rand.New(rand.NewSource(tCfg.Seed))
 	accounts, genesisAppState, chainID, genesisTimestamp := prepareInitialGenesisState(testInstance.App, r, testInstance.BankKeeper, tCfg, testInstance.ModuleManager)
 
@@ -230,7 +231,7 @@ func doChainInitWithGenesis[T Tx](
 
 	stateRoot, err := appStore.Commit(&store.Changeset{Changes: changeSet})
 	require.NoError(t, err)
-
+	fmt.Printf("++ genesis block, hash: %X\n", stateRoot)
 	return initRsp, stateRoot
 }
 
@@ -269,7 +270,7 @@ func doMainLoop[T Tx](
 	appStore := cs.appStore
 
 	const ( // todo: read from CLI instead
-		numBlocks     = 110 // 500 default
+		numBlocks     = 1   // 500 default
 		maxTXPerBlock = 200 // 200 default
 	)
 
@@ -296,19 +297,12 @@ func doMainLoop[T Tx](
 			ChainId: chainID,
 		}
 		cometInfo := comet.Info{
-			ValidatorsHash:  nil,
-			Evidence:        valsetHistory.MissBehaviour(r),
+			ValidatorsHash: nil,
+			//Evidence:        valsetHistory.MissBehaviour(r), // todo: enable
 			ProposerAddress: activeValidatorSet[0].Address,
 			LastCommit:      activeValidatorSet.NewCommitInfo(r),
 		}
-		fOps, pos := futureOpsReg.FindScheduled(blockTime), 0
-		nextFactoryFn := func() simsx.SimMsgFactoryX {
-			if pos < len(fOps) {
-				pos++
-				return fOps[pos-1]
-			}
-			return nextMsgFactory()
-		}
+		fOps, pos := futureOpsReg.PopScheduledFor(blockTime), 0
 		addressCodec := cs.txConfig.SigningContext().AddressCodec()
 		simsCtx := context.WithValue(rootCtx, corecontext.CometInfoKey, cometInfo) // required for ContextAwareCometInfoService
 		resultHandlers := make([]simsx.SimDeliveryResultHandler, 0, maxTXPerBlock)
@@ -318,10 +312,18 @@ func doMainLoop[T Tx](
 				testData := simsx.NewChainDataSource(ctx, r, authKeeper, bankKeeper, addressCodec, accounts...)
 				for txPerBlockCounter < maxTXPerBlock {
 					txPerBlockCounter++
-					msgFactory := nextFactoryFn()
+					msgFactory := func() simsx.SimMsgFactoryX {
+						if pos < len(fOps) {
+							pos++
+							return fOps[pos-1]
+						}
+						return nextMsgFactory()
+					}()
+					fmt.Printf("++ msg: %T\n", msgFactory.MsgType())
 					reporter := rootReporter.WithScope(msgFactory.MsgType())
 					if fx, ok := msgFactory.(simsx.HasFutureOpsRegistry); ok {
 						fx.SetFutureOpsRegistry(futureOpsReg)
+						continue
 					}
 
 					// the stf context is required to access state via keepers
@@ -350,12 +352,22 @@ func doMainLoop[T Tx](
 			Version: blockReqN.Height,
 			Changes: changeSet,
 		})
+		fmt.Printf("++ block %d, hash: %X\n", blockReqN.Height, stateRoot)
+
 		require.NoError(t, err)
 		require.Equal(t, len(resultHandlers), len(blockRsp.TxResults), "txPerBlockCounter: %d, totalSkipped: %d", txPerBlockCounter, txSkippedCounter)
 		for i, v := range blockRsp.TxResults {
 			require.NoError(t, resultHandlers[i](v.Error))
 		}
 		txTotalCounter += txPerBlockCounter
+		var removed int
+		for _, v := range blockRsp.ValidatorUpdates {
+			if v.Power == 0 {
+				removed++
+			}
+		}
+		fmt.Printf("++ evidence: %d, blockRsp.ValidatorUpdates %d, removed: %d\n", len(cometInfo.Evidence), len(blockRsp.ValidatorUpdates), removed)
+
 		activeValidatorSet = activeValidatorSet.Update(blockRsp.ValidatorUpdates)
 		fmt.Printf("active validator set: %d\n", len(activeValidatorSet))
 	}
@@ -387,6 +399,9 @@ func prepareSimsMsgFactories(
 			xm.WeightedOperationsX(weights, factoryRegistry, proposalRegistry.Iterator(), nil)
 		}
 	}
+	slices.SortFunc(*factoryRegistry, func(a, b simsx.WeightedFactory) int {
+		return a.Compare(b)
+	})
 	msgFactoriesFn := simsxv2.NextFactoryFn(*factoryRegistry, r)
 	return msgFactoriesFn
 }

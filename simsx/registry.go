@@ -176,8 +176,7 @@ func (s UniqueTypeRegistry) Add(weight uint32, f SimMsgFactoryX) {
 
 // Iterator returns an iterator function for a Go for loop sorted by weight desc.
 func (s UniqueTypeRegistry) Iterator() WeightedProposalMsgIter {
-	x := maps.Values(s)
-	sortedWeightedFactory := slices.SortedFunc(x, func(a, b WeightedFactory) int {
+	sortedWeightedFactory := slices.SortedFunc(maps.Values(s), func(a, b WeightedFactory) int {
 		return a.Compare(b)
 	})
 
