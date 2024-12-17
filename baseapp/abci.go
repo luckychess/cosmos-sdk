@@ -2,6 +2,7 @@ package baseapp
 
 import (
 	"context"
+	"encoding/hex"
 	"fmt"
 	"sort"
 	"strings"
@@ -872,7 +873,7 @@ func (app *BaseApp) FinalizeBlock(req *abci.RequestFinalizeBlock) (res *abci.Res
 		if !aborted {
 			if res != nil {
 				res.AppHash = app.workingHash()
-				app.Logger().Info("set appHash if app.optimisticExec.Initialized", "hash", res.AppHash)
+				app.Logger().Info("set appHash if app.optimisticExec.Initialized", "hash", hex.EncodeToString(res.AppHash))
 			}
 
 			return res, err
@@ -888,7 +889,7 @@ func (app *BaseApp) FinalizeBlock(req *abci.RequestFinalizeBlock) (res *abci.Res
 	app.Logger().Info("internalFinalizeBlock", "result", res)
 	if res != nil {
 		res.AppHash = app.workingHash()
-		app.Logger().Info("set appHash after internalFinalizeBlock", "hash", res.AppHash)
+		app.Logger().Info("set appHash after internalFinalizeBlock", "hash", hex.EncodeToString(res.AppHash))
 	}
 
 	return res, err
@@ -982,7 +983,7 @@ func (app *BaseApp) workingHash() []byte {
 
 	// Get the hash of all writes in order to return the apphash to the comet in finalizeBlock.
 	commitHash := app.cms.WorkingHash()
-	app.logger.Debug("hash of all writes", "workingHash", fmt.Sprintf("%X", commitHash))
+	app.logger.Info("hash of all writes", "workingHash", fmt.Sprintf("%X", commitHash))
 
 	return commitHash
 }
