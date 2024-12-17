@@ -856,6 +856,8 @@ func (app *BaseApp) FinalizeBlock(req *abci.RequestFinalizeBlock) (res *abci.Res
 		for _, streamingListener := range app.streamingManager.ABCIListeners {
 			if err := streamingListener.ListenFinalizeBlock(app.finalizeBlockState.Context(), *req, *res); err != nil {
 				app.logger.Error("ListenFinalizeBlock listening hook failed", "height", req.Height, "err", err)
+			} else {
+				app.Logger().Info("ListenFinalizeBlock got result", "result", res)
 			}
 		}
 	}()
@@ -870,6 +872,7 @@ func (app *BaseApp) FinalizeBlock(req *abci.RequestFinalizeBlock) (res *abci.Res
 		if !aborted {
 			if res != nil {
 				res.AppHash = app.workingHash()
+				app.Logger().Info("set appHash if app.optimisticExec.Initialized", "hash", res.AppHash)
 			}
 
 			return res, err
@@ -882,8 +885,10 @@ func (app *BaseApp) FinalizeBlock(req *abci.RequestFinalizeBlock) (res *abci.Res
 
 	// if no OE is running, just run the block (this is either a block replay or a OE that got aborted)
 	res, err = app.internalFinalizeBlock(context.Background(), req)
+	app.Logger().Info("internalFinalizeBlock", "result", res)
 	if res != nil {
 		res.AppHash = app.workingHash()
+		app.Logger().Info("set appHash after internalFinalizeBlock", "hash", res.AppHash)
 	}
 
 	return res, err
