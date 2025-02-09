@@ -212,15 +212,20 @@ func (k Keeper) SaveGrant(ctx sdk.Context, grantee, granter sdk.AccAddress, auth
 // DeleteGrant revokes any authorization for the provided message type granted to the grantee
 // by the granter.
 func (k Keeper) DeleteGrant(ctx sdk.Context, grantee sdk.AccAddress, granter sdk.AccAddress, msgType string) error {
+	ctx.Logger().Info("DeleteGrant", "grantee", grantee, "granter", granter, "msgType", msgType)
 	store := ctx.KVStore(k.storeKey)
 	skey := grantStoreKey(grantee, granter, msgType)
 	grant, found := k.getGrant(ctx, skey)
 	if !found {
+		ctx.Logger().Info("DeleteGrant: getGrand not found", "grant", grant)
 		return sdkerrors.Wrapf(authz.ErrNoAuthorizationFound, "failed to delete grant with key %s", string(skey))
 	}
 
+	ctx.Logger().Info("DeleteGrant", "expiration", grant.Expiration)
+
 	if grant.Expiration != nil {
 		err := k.removeFromGrantQueue(ctx, skey, granter, grantee, *grant.Expiration)
+		ctx.Logger().Info("DeleteGrant: removeFromGrantQueue", "err", err)
 		if err != nil {
 			return err
 		}
@@ -228,11 +233,13 @@ func (k Keeper) DeleteGrant(ctx sdk.Context, grantee sdk.AccAddress, granter sdk
 
 	store.Delete(skey)
 
-	return ctx.EventManager().EmitTypedEvent(&authz.EventRevoke{
+	err := ctx.EventManager().EmitTypedEvent(&authz.EventRevoke{
 		MsgTypeUrl: msgType,
 		Granter:    granter.String(),
 		Grantee:    grantee.String(),
 	})
+	ctx.Logger().Info("DeleteGrant: EmitTypedEvent", "err", err)
+	return err
 }
 
 // GetAuthorizations Returns list of `Authorizations` granted to the grantee by the granter.
