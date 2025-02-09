@@ -224,6 +224,7 @@ func (st *Store) Has(key []byte) (exists bool) {
 func (st *Store) Delete(key []byte) {
 	defer telemetry.MeasureSince(time.Now(), "store", "iavl", "delete")
 	if _, _, err := st.tree.Remove(key); err != nil {
+		fmt.Printf("Error deleting key %s: %s\n", key, err)
 		panic(err)
 	}
 }
