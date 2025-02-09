@@ -2,6 +2,7 @@ package keeper
 
 import (
 	"fmt"
+	"runtime/debug"
 	"strconv"
 	"time"
 
@@ -209,31 +210,36 @@ func (k Keeper) SaveGrant(ctx sdk.Context, grantee, granter sdk.AccAddress, auth
 	})
 }
 
+func (k Keeper) panicRethrow(ctx sdk.Context) {
+	defer func() {
+		if r := recover(); r != nil {
+			k.Logger(ctx).Info("Panic discovered, rethrowing:", r)
+			debug.PrintStack()
+			panic(r)
+		}
+	}()
+}
+
 // DeleteGrant revokes any authorization for the provided message type granted to the grantee
 // by the granter.
 func (k Keeper) DeleteGrant(ctx sdk.Context, grantee sdk.AccAddress, granter sdk.AccAddress, msgType string) error {
+	defer k.panicRethrow(ctx)
 	k.Logger(ctx).Info("DeleteGrant", "grantee", grantee, "granter", granter, "msgType", msgType)
-	fmt.Printf("DeleteGrant: grantee: %s, granter: %s, msgType: %s\n", grantee, granter, msgType)
 	store := ctx.KVStore(k.storeKey)
 	k.Logger(ctx).Info("DeleteGrant", "gotStore", store)
-	fmt.Printf("DeleteGrant: gotStore: %v\n", store)
 	skey := grantStoreKey(grantee, granter, msgType)
-	fmt.Printf("DeleteGrant: skey: %v\n", skey)
 	k.Logger(ctx).Info("DeleteGrant", "skey", skey)
 	grant, found := k.getGrant(ctx, skey)
 	if !found {
 		k.Logger(ctx).Info("DeleteGrant: getGrant not found", "grant", grant)
-		fmt.Printf("DeleteGrant: getGrant not found, grant: %v\n", grant)
 		return sdkerrors.Wrapf(authz.ErrNoAuthorizationFound, "failed to delete grant with key %s", string(skey))
 	}
 
 	k.Logger(ctx).Info("DeleteGrant", "expiration", grant.Expiration)
-	fmt.Printf("DeleteGrant: expiration: %v\n", grant.Expiration)
 
 	if grant.Expiration != nil {
 		err := k.removeFromGrantQueue(ctx, skey, granter, grantee, *grant.Expiration)
 		k.Logger(ctx).Info("DeleteGrant: removeFromGrantQueue", "err", err)
-		fmt.Printf("DeleteGrant: removeFromGrantQueue, err: %v\n", err)
 		if err != nil {
 			return err
 		}
@@ -241,7 +247,6 @@ func (k Keeper) DeleteGrant(ctx sdk.Context, grantee sdk.AccAddress, granter sdk
 
 	store.Delete(skey)
 	k.Logger(ctx).Info("DeleteGrant: skey deleted", "skey", skey)
-	fmt.Printf("DeleteGrant: skey deleted, skey: %v\n", skey)
 
 	err := ctx.EventManager().EmitTypedEvent(&authz.EventRevoke{
 		MsgTypeUrl: msgType,
@@ -249,7 +254,6 @@ func (k Keeper) DeleteGrant(ctx sdk.Context, grantee sdk.AccAddress, granter sdk
 		Grantee:    grantee.String(),
 	})
 	k.Logger(ctx).Info("DeleteGrant: EmitTypedEvent", "err", err)
-	fmt.Printf("DeleteGrant: EmitTypedEvent, err: %v\n", err)
 	return err
 }
 
