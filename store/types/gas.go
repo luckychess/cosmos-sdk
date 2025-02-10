@@ -113,6 +113,7 @@ func (g *basicGasMeter) ConsumeGas(amount Gas, descriptor string) {
 		panic(ErrorGasOverflow{descriptor})
 	}
 
+	fmt.Printf("basicGasMeter before consumption limit check, consumed=%d, limit=%d\n", g.consumed, g.limit)
 	if g.consumed > g.limit {
 		fmt.Printf("basicGasMeter out of gas consumed=%d, limit=%d\n", g.consumed, g.limit)
 		panic(ErrorOutOfGas{descriptor})
